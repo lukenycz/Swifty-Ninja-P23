@@ -102,16 +102,68 @@ class GameScene: SKScene {
         addChild(activeSliceFG)
     }
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let touch = touches.first else { return}
-        let location = touch.location(in: self)
-        activeSlicePoints.append(location)
-        redrawActiveSlice()
-        
-        if !isSwooshSoundActive {
-            playSwooshSound()
+            guard let touch = touches.first else { return}
+            let location = touch.location(in: self)
+            activeSlicePoints.append(location)
+            redrawActiveSlice()
+            
+            if !isSwooshSoundActive {
+                playSwooshSound()
+            }
+            let nodeAtPoint = nodes(at: location)
+            for case let node as SKSpriteNode in nodeAtPoint {
+                if node.name == "enemy" {
+                    if let emitter = SKEmitterNode(fileNamed: "sliceHitEnemy") {
+                        emitter.position = node.position
+                        addChild(emitter)
+                    }
+                    node.name = ""
+                    node.physicsBody?.isDynamic = false
+                    
+                    let scaleOut = SKAction.scale(to: 0.001, duration: 0.2)
+                    let fadeOut = SKAction.fadeOut(withDuration: 0.2)
+                    let group = SKAction.group([scaleOut, fadeOut])
+                    
+                    let sequence = SKAction.sequence([group, .removeFromParent()])
+                    node.run(sequence)
+                    
+                    score += 1
+                    
+                    if let index = activeEnemies.firstIndex(of: node) {
+                        activeEnemies.remove(at: index)
+                    }
+                    run(SKAction.playSoundFileNamed("whack.caf", waitForCompletion: false))
+                    
+                } else if node.name == "bomb" {
+                    guard let bombContainer = node.parent as? SKSpriteNode else {continue}
+                    
+                    if let emitter = SKEmitterNode(fileNamed: "sliceBomb") {
+                        emitter.position = bombContainer.position
+                        addChild(emitter)
+                    }
+                    node.name = ""
+                    bombContainer.physicsBody?.isDynamic = false
+                    
+                    let scaleOut = SKAction.scale(to: 0.001, duration: 0.2)
+                    let fadeOut = SKAction.fadeOut(withDuration: 0.2)
+                    let group = SKAction.group([scaleOut, fadeOut])
+                    
+                    let sequence = SKAction.sequence([group, .removeFromParent()])
+                    bombContainer.run(sequence)
+                    
+                    if let index = activeEnemies.firstIndex(of: bombContainer) {
+                        activeEnemies.remove(at: index)
+                    }
+                    run(SKAction.playSoundFileNamed("explosion.caf", waitForCompletion: false))
+                    endGame()
+            
+            }
         }
+     }
+
+    func endGame() {
+        
     }
-    
     func playSwooshSound() {
         isSwooshSoundActive = true
         
@@ -229,13 +281,28 @@ class GameScene: SKScene {
         
         
     }
+    func substractLife() {
+        
+    }
     override func update(_ currentTime: TimeInterval) {
         
         if activeEnemies.count > 0 {
             for (index, node) in activeEnemies.enumerated().reversed() {
                 if node.position.y < -140 {
-                    node.removeFromParent()
-                    activeEnemies.remove(at: index)
+                    node.removeAllActions()
+//                    node.removeFromParent()
+//                    activeEnemies.remove(at: index)
+                    if node.name == "enemy" {
+                        node.name = ""
+                        substractLife()
+                        node.removeFromParent()
+                        activeEnemies.remove(at: index)
+                        
+                    } else if node.name == "bombContrainer" {
+                        node.name = ""
+                        node.removeFromParent()
+                        activeEnemies.remove(at: index)
+                    }
                 }
             }
         } else  {
@@ -258,59 +325,61 @@ class GameScene: SKScene {
             bombSoundEffect = nil
         }
         
+        
     }
-    func tossEnemies() {
-        popupTime *= 0.991
-        chainDelay *= 0.99
-        physicsWorld.speed *= 1.02
-        
-        let sequenceType = sequence[sequencePosition]
-        
-        switch sequenceType {
-        case .oneNoBomb:
-            createEnemy(forceBomb: .never)
-        case .one:
-            createEnemy()
-        case .twoWithOneBomb:
-            createEnemy(forceBomb: .never)
-            createEnemy(forceBomb: .always)
-        case .two:
-            createEnemy()
-            createEnemy()
-        case .three:
-            createEnemy()
-            createEnemy()
-            createEnemy()
-        case .four:
-            createEnemy()
-            createEnemy()
-            createEnemy()
-            createEnemy()
-        case .chain:
-            createEnemy()
+        func tossEnemies() {
+            popupTime *= 0.991
+            chainDelay *= 0.99
+            physicsWorld.speed *= 1.02
             
-            DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 5.0)
-            { [weak self] in self?.createEnemy() }
-            DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 5.0 * 2)
-            { [weak self] in self?.createEnemy() }
-            DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 5.0 * 3)
-            { [weak self] in self?.createEnemy() }
-            DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 5.0 * 4)
-            { [weak self] in self?.createEnemy() }
-        case .fastChain:
-            createEnemy()
+            let sequenceType = sequence[sequencePosition]
             
-            DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 10.0)
-            { [weak self] in self?.createEnemy() }
-            DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 10.0 * 2)
-            { [weak self] in self?.createEnemy() }
-            DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 10.0 * 3)
-            { [weak self] in self?.createEnemy() }
-            DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 10.0 * 4)
-            { [weak self] in self?.createEnemy() }
+            switch sequenceType {
+            case .oneNoBomb:
+                createEnemy(forceBomb: .never)
+            case .one:
+                createEnemy()
+            case .twoWithOneBomb:
+                createEnemy(forceBomb: .never)
+                createEnemy(forceBomb: .always)
+            case .two:
+                createEnemy()
+                createEnemy()
+            case .three:
+                createEnemy()
+                createEnemy()
+                createEnemy()
+            case .four:
+                createEnemy()
+                createEnemy()
+                createEnemy()
+                createEnemy()
+            case .chain:
+                createEnemy()
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 5.0)
+                { [weak self] in self?.createEnemy() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 5.0 * 2)
+                { [weak self] in self?.createEnemy() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 5.0 * 3)
+                { [weak self] in self?.createEnemy() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 5.0 * 4)
+                { [weak self] in self?.createEnemy() }
+            case .fastChain:
+                createEnemy()
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 10.0)
+                { [weak self] in self?.createEnemy() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 10.0 * 2)
+                { [weak self] in self?.createEnemy() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 10.0 * 3)
+                { [weak self] in self?.createEnemy() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + chainDelay / 10.0 * 4)
+                { [weak self] in self?.createEnemy() }
 
+            }
+            sequencePosition += 1
+            nextSequenceQueued = false
         }
-        sequencePosition += 1
-        nextSequenceQueued = false
     }
-}
+
